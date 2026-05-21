@@ -1,0 +1,29 @@
+#!/bin/bash
+
+# Source OpenFOAM environment if not already loaded
+if [ -z "$WM_PROJECT_DIR" ]; then
+    export WM_MPLIB=OPENMPI
+    source /home/monal/Documents/dependencies/openfoam/etc/bashrc
+fi
+
+. $WM_PROJECT_DIR/bin/tools/RunFunctions
+
+# Clean previous results
+rm -rf 0 [0-9]* VTK processor* dynamicCode log.*
+
+# Copy initial fields
+cp -r initial 0
+
+# Create mesh
+runApplication blockMesh
+
+# Initialise Zalesak disk
+runApplication setFields
+
+if [[ $1 == "parallel" ]]; then
+    runApplication decomposePar
+    runParallel laserbeamFoam
+    runApplication reconstructPar
+else
+    runApplication laserbeamFoam
+fi

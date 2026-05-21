@@ -1,0 +1,24 @@
+#!/bin/bash
+
+if [ -z "$1" ]; then
+    echo "Usage: ./Allmove <destination>"
+    exit 1
+fi
+
+dest="$1"
+mkdir -p "$dest"
+
+# Copy case setup
+cp -r constant system initial Allrun Allclean Allmove "$dest/"
+
+# Copy results (time directories)
+for d in [0-9]*; do
+    [ -d "$d" ] && cp -r "$d" "$dest/"
+done
+
+# Copy logs and VTKs if present
+cp log.* "$dest/" 2>/dev/null
+[ -d VTKs ] && cp -r VTKs "$dest/"
+[ -d dynamicCode ] && cp -r dynamicCode "$dest/"
+
+echo "Moved results to $dest"

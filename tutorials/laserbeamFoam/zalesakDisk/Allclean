@@ -1,0 +1,11 @@
+#!/bin/bash
+
+if [ -z "$WM_PROJECT_DIR" ]; then
+    export WM_MPLIB=OPENMPI
+    source /home/monal/Documents/dependencies/openfoam/etc/bashrc
+fi
+
+. $WM_PROJECT_DIR/bin/tools/CleanFunctions
+
+cleanCase
+rm -rf 0 VTK processor* dynamicCode

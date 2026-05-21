@@ -1,0 +1,29 @@
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "system";
+    object      setFieldsDict;
+}
+
+defaultFieldValues
+(
+    volScalarFieldValue alpha.metal 0
+);
+
+regions
+(
+    cylinderToCell
+    {
+        p1 (0.5 -1 0.75);
+        p2 (0.5 2 0.75);
+        radius 0.15;
+        fieldValues (volScalarFieldValue alpha.metal 1);
+    }
+    boxToCell
+    {
+        box (0.47 -1 0.55) (0.53 2 0.85);
+        fieldValues (volScalarFieldValue alpha.metal 0);
+    }
+);
