@@ -1,0 +1,3 @@
+thincAdvection.C
+
+LIB = $(FOAM_USER_LIBBIN)/libthincVoFLMFOAM
