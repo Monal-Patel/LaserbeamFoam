@@ -108,12 +108,13 @@ if
 (
     interfaceTrackingScheme != "MULES"
  && interfaceTrackingScheme != "isoAdvector"
+ && interfaceTrackingScheme != "THINC"
 )
 {
     FatalErrorIn("laserbeamFoam.C")
         << "Unknown interface tracking scheme "
         << interfaceTrackingScheme
-        << ". Available options are 'MULES' and 'isoAdvector'"
+        << ". Available options are 'MULES', 'isoAdvector', and 'THINC'"
         << exit(FatalError);
 }
 
@@ -877,3 +878,10 @@ mesh.setFluxRequired(alpha1.name());
 
 #include "isoAdvector/createPorosity.H"
 isoAdvection advector(alpha1, phi, U);
+
+autoPtr<thincAdvection> thincAdvectorPtr;
+if (interfaceTrackingScheme == "THINC")
+{
+    const dictionary& thincDict = transportProperties.subDict("THINC");
+    thincAdvectorPtr.reset(new thincAdvection(alpha1, phi, U, thincDict));
+}

@@ -49,6 +49,7 @@ Authors
 #include "fvCFD.H"
 #include "dynamicFvMesh.H"
 #include "isoAdvection.H"
+#include "thincAdvection.H"
 #include "CMULES.H"
 #include "EulerDdtScheme.H"
 #include "localEulerDdtScheme.H"
@@ -105,6 +106,14 @@ int main(int argc, char *argv[])
         #include "isoAdvector/porousCourantNo.H"
         #include "setInitialDeltaT.H"
     }
+    else if (interfaceTrackingScheme == "THINC")
+    {
+        if (!LTS)
+        {
+            #include "MULES/CourantNo.H"
+            #include "setInitialDeltaT.H"
+        }
+    }
 
     // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
     Info<< "\nStarting time loop\n" << endl;
@@ -133,6 +142,19 @@ int main(int argc, char *argv[])
             #include "isoAdvector/porousAlphaCourantNo.H"
             #include "isoAdvector/setDeltaT.H"
         }
+        else if (interfaceTrackingScheme == "THINC")
+        {
+            if (LTS)
+            {
+                #include "MULES/setRDeltaT.H"
+            }
+            else
+            {
+                #include "MULES/CourantNo.H"
+                #include "MULES/alphaCourantNo.H"
+                #include "MULES/setDeltaT.H"
+            }
+        }
 
         ++runTime;
 
@@ -153,6 +175,12 @@ int main(int argc, char *argv[])
                 #include "isoAdvector/firstIter.H"
                 #include "isoAdvector/alphaControls.H"
                 #include "isoAdvector/alphaEqnSubCycle.H"
+            }
+            else if (interfaceTrackingScheme == "THINC")
+            {
+                #include "THINC/firstIter.H"
+                #include "THINC/alphaControls.H"
+                #include "THINC/alphaEqnSubCycle.H"
             }
 
             #include "updateProps.H"
