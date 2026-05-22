@@ -1,6 +1,22 @@
 # Test directories
 tutorialsTest
 
+# Pixi
+.pixi-bashrc
+pixi.lock
+pixi.toml
+
+# ParaView
+*.foam
+
+# OpenFOAM runtime
+dynamicCode/
+timeVsLaser*
+
+# Tutorial run results
+tutorials/**/initial/
+tutorials/**/*_temp
+
 # VTK files
 *.vtk
 *.VTK
@@ -10,6 +26,7 @@ VTK
 
 # Build files
 **/log.Allwmake
+build/
 
 # Solution Files
 log*

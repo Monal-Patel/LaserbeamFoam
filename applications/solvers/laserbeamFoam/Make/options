@@ -1,4 +1,5 @@
 EXE_INC = \
+    -DLASERFOAM_PROFILING \
     -I../../../src/MTHD/lnInclude \
     -I../../../src/laserHeatSource/lnInclude \
     -I../../../src/thincVoF/lnInclude \

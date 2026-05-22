@@ -67,6 +67,7 @@ Authors
 #include "Polynomial.H"
 #include "laserHeatSource.H"
 #include "mthdModel.H"
+#include "chrono.h"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
@@ -118,6 +119,9 @@ int main(int argc, char *argv[])
     // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
     Info<< "\nStarting time loop\n" << endl;
 
+#ifdef LASERFOAM_PROFILING
+    laserfoam::CumulativeTimer eqnTimer({"alpha", "laser", "U", "T", "p"});
+#endif
     while (runTime.run())
     {
         #include "readControls.H"
@@ -164,6 +168,9 @@ int main(int argc, char *argv[])
         while (pimple.loop())
         {
 
+#ifdef LASERFOAM_PROFILING
+            auto alphaT0 = eqnTimer.tick();
+#endif
             if (interfaceTrackingScheme == "MULES")
             {
                 #include "MULES/firstIter.H"
@@ -182,14 +189,23 @@ int main(int argc, char *argv[])
                 #include "THINC/alphaControls.H"
                 #include "THINC/alphaEqnSubCycle.H"
             }
+#ifdef LASERFOAM_PROFILING
+            eqnTimer.accumulate("alpha", alphaT0);
+#endif
 
             #include "updateProps.H"
 
+#ifdef LASERFOAM_PROFILING
+            auto laserT0 = eqnTimer.tick();
+#endif
             // Update the laser deposition field
             laser.updateDeposition
             (
                 alpha_filtered, n_filtered, electrical_resistivity
             );
+#ifdef LASERFOAM_PROFILING
+            eqnTimer.accumulate("laser", laserT0);
+#endif
 
             mixture.correct();
 
@@ -198,18 +214,36 @@ int main(int argc, char *argv[])
                 continue;
             }
 
+#ifdef LASERFOAM_PROFILING
+            auto uT0 = eqnTimer.tick();
+#endif
             #include "UEqn.H"
             if (mthd.valid())
             {
                 mthd->solve(phi, U);
             }
+#ifdef LASERFOAM_PROFILING
+            eqnTimer.accumulate("U", uT0);
+#endif
+#ifdef LASERFOAM_PROFILING
+            auto tT0 = eqnTimer.tick();
+#endif
             #include "TEqn.H"
+#ifdef LASERFOAM_PROFILING
+            eqnTimer.accumulate("T", tT0);
+#endif
 
             // --- Pressure corrector loop
+#ifdef LASERFOAM_PROFILING
+            auto pT0 = eqnTimer.tick();
+#endif
             while (pimple.correct())
             {
                 #include "pEqn.H"
             }
+#ifdef LASERFOAM_PROFILING
+            eqnTimer.accumulate("p", pT0);
+#endif
 
             if (pimple.turbCorr())
             {
@@ -235,6 +269,9 @@ int main(int argc, char *argv[])
         runTime.printExecutionTime(Info);
     }
 
+#ifdef LASERFOAM_PROFILING
+    eqnTimer.report();
+#endif
     Info<< "End\n" << endl;
 
     return 0;
