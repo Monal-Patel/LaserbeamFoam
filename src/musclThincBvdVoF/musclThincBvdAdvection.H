@@ -185,6 +185,18 @@ class musclThincBvdAdvection
 
     surfaceScalarField alphaPhi_;
 
+    scalarField qimhM_O_, qiphM_O_, qimhT_O_, qiphT_O_;
+    scalarField qimhM_N_, qiphM_N_, qimhT_N_, qiphT_N_;
+    scalarField qimhM_L_, qiphM_L_, qimhT_L_, qiphT_L_;
+    scalarField qimhM_R_, qiphM_R_, qimhT_R_, qiphT_R_;
+
+    labelField stencilOm1_;
+    labelField stencilOm2_;
+    labelField stencilNp1_;
+    labelField stencilNp2_;
+
+    void buildStencilMap();
+
     void computeAlphaPhi();
 
 public:

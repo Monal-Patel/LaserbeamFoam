@@ -25,21 +25,79 @@ License
 
 #include "musclThincBvdAdvection.H"
 
-#include "fvc.H"
+
+void Foam::musclThincBvdAdvection::buildStencilMap()
+{
+    const label nIF = mesh_.nInternalFaces();
+    stencilOm1_.setSize(nIF);
+    stencilOm2_.setSize(nIF);
+    stencilNp1_.setSize(nIF);
+    stencilNp2_.setSize(nIF);
+
+    const cellList& cells = mesh_.cells();
+    const faceList& faces = mesh_.faces();
+    const labelUList& own = mesh_.faceOwner();
+    const labelUList& nei = mesh_.faceNeighbour();
+
+    for (label fi = 0; fi < nIF; ++fi)
+    {
+        const label O = own[fi];
+        const label N = nei[fi];
+
+        label Om1 = O;
+        label Om2 = O;
+        const label fOppO = cells[O].opposingFaceLabel(fi, faces);
+        if (fOppO >= 0 && fOppO < nIF)
+        {
+            Om1 = (own[fOppO] == O) ? nei[fOppO] : own[fOppO];
+            const label fOppOm1 =
+                cells[Om1].opposingFaceLabel(fOppO, faces);
+            if (fOppOm1 >= 0 && fOppOm1 < nIF)
+            {
+                Om2 = (own[fOppOm1] == Om1)
+                    ? nei[fOppOm1] : own[fOppOm1];
+            }
+            else
+            {
+                Om2 = Om1;
+            }
+        }
+
+        label Np1 = N;
+        label Np2 = N;
+        const label fOppN = cells[N].opposingFaceLabel(fi, faces);
+        if (fOppN >= 0 && fOppN < nIF)
+        {
+            Np1 = (own[fOppN] == N) ? nei[fOppN] : own[fOppN];
+            const label fOppNp1 =
+                cells[Np1].opposingFaceLabel(fOppN, faces);
+            if (fOppNp1 >= 0 && fOppNp1 < nIF)
+            {
+                Np2 = (own[fOppNp1] == Np1)
+                    ? nei[fOppNp1] : own[fOppNp1];
+            }
+            else
+            {
+                Np2 = Np1;
+            }
+        }
+
+        stencilOm1_[fi] = Om1;
+        stencilOm2_[fi] = Om2;
+        stencilNp1_[fi] = Np1;
+        stencilNp2_[fi] = Np2;
+    }
+}
 
 
 void Foam::musclThincBvdAdvection::computeAlphaPhi()
 {
     alpha1_.correctBoundaryConditions();
 
-    const volVectorField gradAlpha(fvc::grad(alpha1_));
-    const vectorField& gradAlphaIn = gradAlpha.primitiveField();
-
     const scalarField& alphaIn = alpha1_.primitiveField();
     const scalarField& phiIn   = phi_.primitiveField();
     const labelUList& own      = mesh_.faceOwner();
     const labelUList& nei      = mesh_.faceNeighbour();
-    const vectorField& cellCentres = mesh_.C();
 
     const label nInternalFaces = mesh_.nInternalFaces();
 
@@ -48,146 +106,48 @@ void Foam::musclThincBvdAdvection::computeAlphaPhi()
         return Foam::max(Foam::min(a, scalar(1.0)), scalar(0.0));
     };
 
-    // -----------------------------------------------------------------------
-    // Phase 1 (AMReX bxg2 pass): per-cell MUSCL+THINC reconstruction.
-    //
-    // For each cell i we need qim1 and qip1 along the face-normal direction.
-    // In an unstructured mesh there is no single "i-1 / i+1" cell.  We use
-    // the gradient-extrapolation approach: qim1 and qip1 are approximated by
-    // extrapolating the cell-centred alpha along its own gradient to the
-    // two ends of the cell, mirroring each end point about the cell centre
-    // to get a virtual upstream / downstream value.  This is equivalent to
-    // the AMReX structured approach when the grid is uniform and Cartesian.
-    //
-    // Storage: 4 scalars per cell [qimhM, qiphM, qimhT, qiphT].
-    // -----------------------------------------------------------------------
-
-    // We build one reconstruction per internal face direction, computed from
-    // the perspective of each cell in its own face-normal direction.
-    // reco[cellI] holds the reconstruction along the direction toward the
-    // face that will be looked up.  Because each face picks a specific
-    // owner/neighbour pair, we pre-compute per-cell arrays indexed by face
-    // for the four relevant values.
-    //
-    // Concretely, for each internal face f with owner O and neighbour N:
-    //   direction d = unit(C_N - C_O)
-    //   For cell O along d: qim1 = alpha(O) - grad(O)·d·hO,  qip1 = alpha(N)
-    //   For cell N along d: qim1 = alpha(O),  qip1 = alpha(N) + grad(N)·d·hN
-    // where hO = |C_N - C_O|, hN = |C_N - C_O| (same span).
-    //
-    // Second-layer values for the BVD neighbourhood are obtained by the same
-    // gradient extrapolation: the "upstream of O" value is
-    //   alpha_Om2 = alpha(O) - 2 * grad(O)·d·hO
-    // and "downstream of N":
-    //   alpha_Np2 = alpha(N) + 2 * grad(N)·d·hN.
-    //
-    // This maps exactly to the AMReX Algorithm 2 neighbourhood structure.
-    // -----------------------------------------------------------------------
-
-    // Per-face reconstruction arrays (owner-perspective and neighbour-perspective).
-    // [face] → {qimhM, qiphM, qimhT, qiphT}
-    scalarField qimhM_O(nInternalFaces);
-    scalarField qiphM_O(nInternalFaces);
-    scalarField qimhT_O(nInternalFaces);
-    scalarField qiphT_O(nInternalFaces);
-
-    scalarField qimhM_N(nInternalFaces);
-    scalarField qiphM_N(nInternalFaces);
-    scalarField qimhT_N(nInternalFaces);
-    scalarField qiphT_N(nInternalFaces);
-
-    // Second-layer reconstructions needed for BVD neighbourhood
-    scalarField qimhM_L(nInternalFaces);
-    scalarField qiphM_L(nInternalFaces);
-    scalarField qimhT_L(nInternalFaces);
-    scalarField qiphT_L(nInternalFaces);
-
-    scalarField qimhM_R(nInternalFaces);
-    scalarField qiphM_R(nInternalFaces);
-    scalarField qimhT_R(nInternalFaces);
-    scalarField qiphT_R(nInternalFaces);
-
+    // Phase 1: per-face MUSCL+THINC reconstruction via direct stencil
     for (label facei = 0; facei < nInternalFaces; ++facei)
     {
         const label owni = own[facei];
         const label neii = nei[facei];
 
-        const scalar alphaO = clampAlpha(alphaIn[owni]);
-        const scalar alphaN = clampAlpha(alphaIn[neii]);
+        const scalar alphaO   = clampAlpha(alphaIn[owni]);
+        const scalar alphaN   = clampAlpha(alphaIn[neii]);
+        const scalar alphaOm1 = clampAlpha(alphaIn[stencilOm1_[facei]]);
+        const scalar alphaNp1 = clampAlpha(alphaIn[stencilNp1_[facei]]);
+        const scalar alphaOm2 = clampAlpha(alphaIn[stencilOm2_[facei]]);
+        const scalar alphaNp2 = clampAlpha(alphaIn[stencilNp2_[facei]]);
 
-        // Face-normal direction (O → N), scaled to full cell span
-        const vector d  = cellCentres[neii] - cellCentres[owni];
-        const scalar hON = Foam::mag(d);
-        const vector dn = (hON > SMALL) ? d/hON : vector::zero;
-
-        // Gradient projections onto the O→N direction (one cell span)
-        const scalar slopeO = (gradAlphaIn[owni] & dn) * hON;
-        const scalar slopeN = (gradAlphaIn[neii] & dn) * hON;
-
-        // Virtual cell values (gradient extrapolation, AMReX i-1 / i+1 / i+2)
-        const scalar alphaOm1 = clampAlpha(alphaO - slopeO);  // left of O (i-1)
-        const scalar alphaNp1 = clampAlpha(alphaN + slopeN);  // right of N (i+2 relative to O)
-
-        // Double-step for second-layer cells (one more span each way)
-        const scalar alphaOm2 = clampAlpha(alphaO - scalar(2.0)*slopeO);
-        const scalar alphaNp2 = clampAlpha(alphaN + scalar(2.0)*slopeN);
-
-        // --- Phase 1: reconstruct_1d for each relevant cell in the stencil ---
-
-        // Owner cell O (stencil: alphaOm1, alphaO, alphaN)
         reconstruct1d(alphaOm1, alphaO, alphaN, beta_, eps_,
-                      qimhM_O[facei], qiphM_O[facei],
-                      qimhT_O[facei], qiphT_O[facei]);
+                      qimhM_O_[facei], qiphM_O_[facei],
+                      qimhT_O_[facei], qiphT_O_[facei]);
 
-        // Neighbour cell N (stencil: alphaO, alphaN, alphaNp1)
         reconstruct1d(alphaO, alphaN, alphaNp1, beta_, eps_,
-                      qimhM_N[facei], qiphM_N[facei],
-                      qimhT_N[facei], qiphT_N[facei]);
+                      qimhM_N_[facei], qiphM_N_[facei],
+                      qimhT_N_[facei], qiphT_N_[facei]);
 
         {
             scalar tmp0, tmp1, tmp2, tmp3;
             reconstruct1d(alphaOm2, alphaOm1, alphaO, beta_, eps_,
                           tmp0, tmp1, tmp2, tmp3);
-            qimhM_L[facei] = tmp0;
-            qiphM_L[facei] = tmp1;
-            qimhT_L[facei] = tmp2;
-            qiphT_L[facei] = tmp3;
+            qimhM_L_[facei] = tmp0;
+            qiphM_L_[facei] = tmp1;
+            qimhT_L_[facei] = tmp2;
+            qiphT_L_[facei] = tmp3;
         }
         {
             scalar tmp0, tmp1, tmp2, tmp3;
             reconstruct1d(alphaN, alphaNp1, alphaNp2, beta_, eps_,
                           tmp0, tmp1, tmp2, tmp3);
-            qimhM_R[facei] = tmp0;
-            qiphM_R[facei] = tmp1;
-            qimhT_R[facei] = tmp2;
-            qiphT_R[facei] = tmp3;
+            qimhM_R_[facei] = tmp0;
+            qiphM_R_[facei] = tmp1;
+            qimhT_R_[facei] = tmp2;
+            qiphT_R_[facei] = tmp3;
         }
     }
 
-    // -----------------------------------------------------------------------
-    // Phase 2 (AMReX bxg pass): BVD selection + flux assembly for each face.
-    //
-    // AMReX Phase 3 (upwind flux):
-    //   face (i-1/2): left = sel(i-1).qiph,  right = sel(i).qimh
-    //
-    // Mapping to our face data:
-    //   At face f between owner O and neighbour N:
-    //     "left"  upwind value = O's selected qiph  (owner  right face value)
-    //     "right" upwind value = N's selected qimh  (neighbour left face value)
-    //
-    //   BVD for O (decides O's qiph):
-    //     bvdSelect1d(O's {qimhM,qiphM,qimhT,qiphT},
-    //                 L's qiph_{M,T},          // left  neighbor of O
-    //                 N's qimh_{M,T},           // right neighbor of O
-    //                 alphaOm1, alphaO, alphaN)
-    //
-    //   BVD for N (decides N's qimh):
-    //     bvdSelect1d(N's {qimhM,qiphM,qimhT,qiphT},
-    //                 O's qiph_{M,T},           // left  neighbor of N
-    //                 R's qimh_{M,T},            // right neighbor of N
-    //                 alphaO, alphaN, alphaNp1)
-    // -----------------------------------------------------------------------
-
+    // Phase 2: BVD selection + upwind flux
     scalarField& alphaPhiIn = alphaPhi_.primitiveFieldRef();
 
     for (label facei = 0; facei < nInternalFaces; ++facei)
@@ -195,57 +155,48 @@ void Foam::musclThincBvdAdvection::computeAlphaPhi()
         const label owni = own[facei];
         const label neii = nei[facei];
 
-        const scalar alphaO = clampAlpha(alphaIn[owni]);
-        const scalar alphaN = clampAlpha(alphaIn[neii]);
-
-        const vector d  = cellCentres[neii] - cellCentres[owni];
-        const scalar hON = Foam::mag(d);
-        const vector dn = (hON > SMALL) ? d/hON : vector::zero;
-
-        const scalar slopeO = (gradAlphaIn[owni] & dn) * hON;
-        const scalar slopeN = (gradAlphaIn[neii] & dn) * hON;
-
-        const scalar alphaOm1 = clampAlpha(alphaO - slopeO);
-        const scalar alphaNp1 = clampAlpha(alphaN + slopeN);
+        const scalar alphaO   = clampAlpha(alphaIn[owni]);
+        const scalar alphaN   = clampAlpha(alphaIn[neii]);
+        const scalar alphaOm1 = clampAlpha(alphaIn[stencilOm1_[facei]]);
+        const scalar alphaNp1 = clampAlpha(alphaIn[stencilNp1_[facei]]);
 
         const bool useTHINC_O = bvdSelect1d
         (
-            qimhM_O[facei], qiphM_O[facei],
-            qimhT_O[facei], qiphT_O[facei],
-            qiphM_L[facei], qiphT_L[facei],
-            qimhM_N[facei], qimhT_N[facei],
+            qimhM_O_[facei], qiphM_O_[facei],
+            qimhT_O_[facei], qiphT_O_[facei],
+            qiphM_L_[facei], qiphT_L_[facei],
+            qimhM_N_[facei], qimhT_N_[facei],
             alphaOm1, alphaO, alphaN,
             eps_, delta_
         );
 
         const bool useTHINC_N = bvdSelect1d
         (
-            qimhM_N[facei], qiphM_N[facei],
-            qimhT_N[facei], qiphT_N[facei],
-            qiphM_O[facei], qiphT_O[facei],
-            qimhM_R[facei], qimhT_R[facei],
+            qimhM_N_[facei], qiphM_N_[facei],
+            qimhT_N_[facei], qiphT_N_[facei],
+            qiphM_O_[facei], qiphT_O_[facei],
+            qimhM_R_[facei], qimhT_R_[facei],
             alphaO, alphaN, alphaNp1,
             eps_, delta_
         );
 
-        const scalar alphaFacePos = useTHINC_O ? qiphT_O[facei] : qiphM_O[facei];
-        const scalar alphaFaceNeg = useTHINC_N ? qimhT_N[facei] : qimhM_N[facei];
+        const scalar alphaFacePos =
+            useTHINC_O ? qiphT_O_[facei] : qiphM_O_[facei];
+        const scalar alphaFaceNeg =
+            useTHINC_N ? qimhT_N_[facei] : qimhM_N_[facei];
 
-        const scalar alphaFace = (phiIn[facei] >= 0)
-            ? alphaFacePos
-            : alphaFaceNeg;
-
-        alphaPhiIn[facei] = phiIn[facei] * alphaFace;
+        alphaPhiIn[facei] = phiIn[facei]
+            * ((phiIn[facei] >= 0) ? alphaFacePos : alphaFaceNeg);
     }
 
-    // -----------------------------------------------------------------------
-    // Boundary faces: upwind with neighbour reconstruction where possible.
-    // -----------------------------------------------------------------------
+    // Boundary faces: upwind
     forAll(alphaPhi_.boundaryField(), patchi)
     {
-        fvsPatchScalarField& alphaPhip = alphaPhi_.boundaryFieldRef()[patchi];
+        fvsPatchScalarField& alphaPhip =
+            alphaPhi_.boundaryFieldRef()[patchi];
         const fvsPatchScalarField& phip = phi_.boundaryField()[patchi];
-        const fvPatchScalarField& alphap = alpha1_.boundaryField()[patchi];
+        const fvPatchScalarField& alphap =
+            alpha1_.boundaryField()[patchi];
         const labelUList& fc = mesh_.boundary()[patchi].faceCells();
 
         if (mesh_.boundary()[patchi].coupled())
@@ -269,6 +220,7 @@ void Foam::musclThincBvdAdvection::computeAlphaPhi()
         }
     }
 }
+
 
 Foam::musclThincBvdAdvection::musclThincBvdAdvection
 (
@@ -298,19 +250,69 @@ Foam::musclThincBvdAdvection::musclThincBvdAdvection
         mesh_,
         dimensionedScalar(phi.dimensions(), Zero)
     )
-{}
+{
+    const label nIF = mesh_.nInternalFaces();
+
+    qimhM_O_.setSize(nIF);
+    qiphM_O_.setSize(nIF);
+    qimhT_O_.setSize(nIF);
+    qiphT_O_.setSize(nIF);
+
+    qimhM_N_.setSize(nIF);
+    qiphM_N_.setSize(nIF);
+    qimhT_N_.setSize(nIF);
+    qiphT_N_.setSize(nIF);
+
+    qimhM_L_.setSize(nIF);
+    qiphM_L_.setSize(nIF);
+    qimhT_L_.setSize(nIF);
+    qiphT_L_.setSize(nIF);
+
+    qimhM_R_.setSize(nIF);
+    qiphM_R_.setSize(nIF);
+    qimhT_R_.setSize(nIF);
+    qiphT_R_.setSize(nIF);
+
+    buildStencilMap();
+}
 
 
 void Foam::musclThincBvdAdvection::advect()
 {
     computeAlphaPhi();
 
-    alpha1_ = alpha1_.oldTime()
-        - mesh_.time().deltaT()
-        * (fvc::div(alphaPhi_) - alpha1_.oldTime()*fvc::div(phi_));
+    const scalar dt = mesh_.time().deltaTValue();
+    scalarField& alphaNew = alpha1_.primitiveFieldRef();
+    const scalarField& alphaOld = alpha1_.oldTime().primitiveField();
+    const auto& V = mesh_.V();
+    const scalarField& alphaPhiIn = alphaPhi_.primitiveField();
+    const scalarField& phiIn = phi_.primitiveField();
+    const labelUList& own = mesh_.faceOwner();
+    const labelUList& nei = mesh_.faceNeighbour();
 
-    // Clip to physical bounds — the explicit unsplit scheme is not TVD in 3D
-    // and can produce small overshoots that amplify without this guard.
+    alphaNew = alphaOld;
+
+    const label nIF = mesh_.nInternalFaces();
+    for (label fi = 0; fi < nIF; ++fi)
+    {
+        const label o = own[fi];
+        const label n = nei[fi];
+        alphaNew[o] -= dt*(alphaPhiIn[fi] - alphaOld[o]*phiIn[fi]) / V[o];
+        alphaNew[n] += dt*(alphaPhiIn[fi] - alphaOld[n]*phiIn[fi]) / V[n];
+    }
+
+    forAll(alphaPhi_.boundaryField(), patchi)
+    {
+        const auto& alphaPhip = alphaPhi_.boundaryField()[patchi];
+        const auto& phip = phi_.boundaryField()[patchi];
+        const labelUList& fc = mesh_.boundary()[patchi].faceCells();
+        forAll(alphaPhip, fi)
+        {
+            const label c = fc[fi];
+            alphaNew[c] -= dt*(alphaPhip[fi] - alphaOld[c]*phip[fi]) / V[c];
+        }
+    }
+
     alpha1_.primitiveFieldRef() =
         Foam::max
         (
