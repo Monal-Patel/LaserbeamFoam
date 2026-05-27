@@ -16,6 +16,7 @@ timeVsLaser*
 # Tutorial run results
 tutorials/**/initial/
 tutorials/**/*_temp
+tutorials/laserbeamFoam/zalesakDisk/constant/polyMesh/
 
 # VTK files
 *.vtk

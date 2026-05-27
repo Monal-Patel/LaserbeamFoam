@@ -6,6 +6,13 @@ if [ -z "$WM_PROJECT_DIR" ]; then
     source /home/monal/Documents/dependencies/openfoam/etc/bashrc
 fi
 
+# Point to local build
+PROJ_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
+export FOAM_USER_APPBIN="${PROJ_ROOT}/build/bin"
+export FOAM_USER_LIBBIN="${PROJ_ROOT}/build/lib"
+export PATH="${FOAM_USER_APPBIN}:${PATH}"
+export LD_LIBRARY_PATH="${FOAM_USER_LIBBIN}:${LD_LIBRARY_PATH}"
+
 . $WM_PROJECT_DIR/bin/tools/RunFunctions
 
 # Clean previous results

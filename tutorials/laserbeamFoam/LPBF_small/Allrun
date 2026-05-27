@@ -1,5 +1,21 @@
 #!/bin/bash
 
+# Source OpenFOAM environment if not already loaded
+if [ -z "$WM_PROJECT_DIR" ]; then
+    export WM_MPLIB=OPENMPI
+    source /home/monal/Documents/dependencies/openfoam/etc/bashrc
+fi
+
+# Handle "clean" option
+if [[ "$1" == "clean" ]]; then
+    . $WM_PROJECT_DIR/bin/tools/CleanFunctions
+    (cd DEM_small && ./Allclean)
+    cleanCase
+    rm -rf 0 VTKs
+    echo "Case cleaned."
+    exit 0
+fi
+
 # Source tutorial run functions
 . $WM_PROJECT_DIR/bin/tools/RunFunctions
 

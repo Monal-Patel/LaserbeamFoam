@@ -12,9 +12,9 @@ interfaceTrackingScheme MULES;
 
 THINC
 {
-    beta            2.0;
+    beta            6.0;
     nGaussPoints    1;
-    vofTol          1e-6;
+    vofTol          1e-3;
 }
 
 phases          (metal gas);
