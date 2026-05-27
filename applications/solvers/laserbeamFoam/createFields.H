@@ -109,12 +109,14 @@ if
     interfaceTrackingScheme != "MULES"
  && interfaceTrackingScheme != "isoAdvector"
  && interfaceTrackingScheme != "THINC"
+ && interfaceTrackingScheme != "MUSCL_THINC_BVD"
 )
 {
     FatalErrorIn("laserbeamFoam.C")
         << "Unknown interface tracking scheme "
         << interfaceTrackingScheme
-        << ". Available options are 'MULES', 'isoAdvector', and 'THINC'"
+        << ". Available options are 'MULES', 'isoAdvector', 'THINC', and "
+        << "'MUSCL_THINC_BVD'"
         << exit(FatalError);
 }
 
@@ -884,4 +886,15 @@ if (interfaceTrackingScheme == "THINC")
 {
     const dictionary& thincDict = transportProperties.subDict("THINC");
     thincAdvectorPtr.reset(new thincAdvection(alpha1, phi, U, thincDict));
+}
+
+autoPtr<musclThincBvdAdvection> musclThincBvdAdvectorPtr;
+if (interfaceTrackingScheme == "MUSCL_THINC_BVD")
+{
+    const dictionary& musclThincBvdDict =
+        transportProperties.subDict("MUSCL_THINC_BVD");
+    musclThincBvdAdvectorPtr.reset
+    (
+        new musclThincBvdAdvection(alpha1, phi, U, musclThincBvdDict)
+    );
 }

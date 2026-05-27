@@ -2,6 +2,7 @@ EXE_INC = \
     -DLASERFOAM_PROFILING \
     -I../../../src/MTHD/lnInclude \
     -I../../../src/laserHeatSource/lnInclude \
+    -I../../../src/musclThincBvdVoF/lnInclude \
     -I../../../src/thincVoF/lnInclude \
     -I$(LIB_SRC)/phaseSystemModels/twoPhaseInter/incompressibleInterPhaseTransportModel/lnInclude \
     -I$(LIB_SRC)/phaseSystemModels/twoPhaseInter/VoFphaseIncompressibleTurbulenceModels/lnInclude \
@@ -27,6 +28,7 @@ EXE_LIBS = \
     -L$(FOAM_USER_LIBBIN) \
     -lMTHD \
     -llaserHeatSource \
+    -lmusclThincBvdVoFLMFOAM \
     -lthincVoFLMFOAM \
     -lfvOptions \
     -lsurfMesh \

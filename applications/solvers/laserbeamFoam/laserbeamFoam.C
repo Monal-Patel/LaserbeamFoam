@@ -50,6 +50,7 @@ Authors
 #include "dynamicFvMesh.H"
 #include "isoAdvection.H"
 #include "thincAdvection.H"
+#include "musclThincBvdAdvection.H"
 #include "CMULES.H"
 #include "EulerDdtScheme.H"
 #include "localEulerDdtScheme.H"
@@ -115,6 +116,14 @@ int main(int argc, char *argv[])
             #include "setInitialDeltaT.H"
         }
     }
+    else if (interfaceTrackingScheme == "MUSCL_THINC_BVD")
+    {
+        if (!LTS)
+        {
+            #include "MUSCL_THINC_BVD/CourantNo.H"
+            #include "setInitialDeltaT.H"
+        }
+    }
 
     // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
     Info<< "\nStarting time loop\n" << endl;
@@ -159,6 +168,19 @@ int main(int argc, char *argv[])
                 #include "MULES/setDeltaT.H"
             }
         }
+        else if (interfaceTrackingScheme == "MUSCL_THINC_BVD")
+        {
+            if (LTS)
+            {
+                #include "MULES/setRDeltaT.H"
+            }
+            else
+            {
+                #include "MULES/CourantNo.H"
+                #include "MULES/alphaCourantNo.H"
+                #include "MULES/setDeltaT.H"
+            }
+        }
 
         ++runTime;
 
@@ -189,9 +211,20 @@ int main(int argc, char *argv[])
                 #include "THINC/alphaControls.H"
                 #include "THINC/alphaEqnSubCycle.H"
             }
+            else if (interfaceTrackingScheme == "MUSCL_THINC_BVD")
+            {
+                #include "MUSCL_THINC_BVD/firstIter.H"
+                #include "MUSCL_THINC_BVD/alphaControls.H"
+                #include "MUSCL_THINC_BVD/alphaEqnSubCycle.H"
+            }
 #ifdef LASERFOAM_PROFILING
             eqnTimer.accumulate("alpha", alphaT0);
 #endif
+
+            if (pimple.frozenFlow())
+            {
+                continue;
+            }
 
             #include "updateProps.H"
 
@@ -208,11 +241,6 @@ int main(int argc, char *argv[])
 #endif
 
             mixture.correct();
-
-            if (pimple.frozenFlow())
-            {
-                continue;
-            }
 
 #ifdef LASERFOAM_PROFILING
             auto uT0 = eqnTimer.tick();

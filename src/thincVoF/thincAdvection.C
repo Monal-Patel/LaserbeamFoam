@@ -42,9 +42,9 @@ Foam::thincAdvection::thincAdvection
     alpha1_(alpha1),
     phi_(phi),
     U_(U),
-    thincBeta_(dict.getOrDefault<scalar>("beta", 2.0)),
+    thincBeta_(dict.getOrDefault<scalar>("beta", 6.0)),
     nGaussPoints_(dict.getOrDefault<label>("nGaussPoints", 1)),
-    vofTol_(dict.getOrDefault<scalar>("vofTol", 1e-6)),
+    vofTol_(dict.getOrDefault<scalar>("vofTol", 1e-3)),
     alphaPhi_
     (
         IOobject
@@ -225,6 +225,8 @@ void Foam::thincAdvection::computeAlphaPhi()
 
     scalarField& alphaPhiIn = alphaPhi_.primitiveFieldRef();
 
+    alpha1_.correctBoundaryConditions();
+
     // Compute interface normals
     const volVectorField gradAlpha(fvc::grad(alpha1_));
     const vectorField& gradAlphaIn = gradAlpha.primitiveField();
@@ -258,44 +260,68 @@ void Foam::thincAdvection::computeAlphaPhi()
         }
     }
 
-    // Internal face fluxes
-    forAll(own, facei)
+    // BVD selection: evaluate THINC at faces and compare boundary variation
+    const label nInternal = mesh_.nInternalFaces();
+    scalarField thincFaceOwn(nInternal, 0);
+    scalarField thincFaceNei(nInternal, 0);
+    scalarField tbvTHINC(mesh_.nCells(), 0);
+    scalarField tbvUpwind(mesh_.nCells(), 0);
+
+    forAll(nei, facei)
+    {
+        const label o = own[facei];
+        const label n = nei[facei];
+
+        if (isInterface[o])
+        {
+            const vector xLocal = cellLocalCoord(faceCentres[facei], o);
+            thincFaceOwn[facei] = evaluateTHINC
+            (
+                thincBeta_, normals[o], intercepts[o], xLocal
+            );
+            tbvTHINC[o] += mag(thincFaceOwn[facei] - alphaIn[n]);
+            tbvUpwind[o] += mag(alphaIn[o] - alphaIn[n]);
+        }
+
+        if (isInterface[n])
+        {
+            const vector xLocal = cellLocalCoord(faceCentres[facei], n);
+            thincFaceNei[facei] = evaluateTHINC
+            (
+                thincBeta_, normals[n], intercepts[n], xLocal
+            );
+            tbvTHINC[n] += mag(thincFaceNei[facei] - alphaIn[o]);
+            tbvUpwind[n] += mag(alphaIn[n] - alphaIn[o]);
+        }
+    }
+
+    boolList useTHINC(mesh_.nCells(), false);
+    forAll(isInterface, celli)
+    {
+        if (isInterface[celli])
+        {
+            useTHINC[celli] = (tbvTHINC[celli] < tbvUpwind[celli]);
+        }
+    }
+
+    // Internal face fluxes using BVD-selected reconstruction
+    forAll(nei, facei)
     {
         scalar alphaFace;
 
         if (phiIn[facei] >= 0)
         {
             const label celli = own[facei];
-            if (isInterface[celli])
-            {
-                const vector xLocal =
-                    cellLocalCoord(faceCentres[facei], celli);
-                alphaFace = evaluateTHINC
-                (
-                    thincBeta_, normals[celli], intercepts[celli], xLocal
-                );
-            }
-            else
-            {
-                alphaFace = alphaIn[celli];
-            }
+            alphaFace = useTHINC[celli]
+                ? thincFaceOwn[facei]
+                : alphaIn[celli];
         }
         else
         {
             const label celli = nei[facei];
-            if (isInterface[celli])
-            {
-                const vector xLocal =
-                    cellLocalCoord(faceCentres[facei], celli);
-                alphaFace = evaluateTHINC
-                (
-                    thincBeta_, normals[celli], intercepts[celli], xLocal
-                );
-            }
-            else
-            {
-                alphaFace = alphaIn[celli];
-            }
+            alphaFace = useTHINC[celli]
+                ? thincFaceNei[facei]
+                : alphaIn[celli];
         }
 
         alphaPhiIn[facei] = phiIn[facei] * alphaFace;
@@ -338,14 +364,17 @@ void Foam::thincAdvection::advect()
 {
     computeAlphaPhi();
 
-    // Explicit Euler update
-    alpha1_ = alpha1_.oldTime() - mesh_.time().deltaT() * fvc::div(alphaPhi_);
+    // Explicit Euler update with div(U) correction for numerical divergence
+    alpha1_ = alpha1_.oldTime()
+        - mesh_.time().deltaT()
+        * (fvc::div(alphaPhi_) - alpha1_.oldTime() * fvc::div(phi_));
 
-    // Bound alpha to [0, 1]
+    // Bound alpha to [eps, 1-eps] to avoid division by zero elsewhere
     scalarField& alphaI = alpha1_.primitiveFieldRef();
+    const scalar alphaMin = 1e-6;
     forAll(alphaI, i)
     {
-        alphaI[i] = Foam::max(Foam::min(alphaI[i], 1.0), 0.0);
+        alphaI[i] = Foam::max(Foam::min(alphaI[i], 1.0 - alphaMin), alphaMin);
     }
 
     alpha1_.correctBoundaryConditions();
