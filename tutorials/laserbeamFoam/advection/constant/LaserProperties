@@ -1,0 +1,33 @@
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "constant";
+    object      PhaseFieldProperties;
+}
+
+radialPolarHeatSource no;
+
+timeVsLaserPosition
+{
+    file    "$FOAM_CASE/constant/timeVsLaserPosition";
+    outOfBounds clamp;
+}
+
+timeVsLaserPower
+{
+    file    "$FOAM_CASE/constant/timeVsLaserPower";
+    outOfBounds clamp;
+}
+
+V_incident (0 1 0);
+
+laserRadius 1e-3;
+
+N_sub_divisions 0;
+
+wavelength      1.064e-6;
+e_num_density   5.83e29;
+Radius_Flavour  2.0;
+PowderSim false;

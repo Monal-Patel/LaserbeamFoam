@@ -1,0 +1,49 @@
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "constant";
+    object      phaseProperties;
+}
+
+interfaceTrackingScheme MULES;
+
+phases          (metal gas);
+
+metal
+{
+    transportModel      Newtonian;
+    nu                  1e-06;
+    rho                 1;
+    Tsolidus            100;
+    Tliquidus           200;
+    LatentHeat          1;
+    beta                0;
+    poly_kappa          (1.0 0 0 0 0 0 0 0);
+    poly_cp             (1.0 0 0 0 0 0 0 0);
+    elec_resistivity    1e-6;
+}
+
+gas
+{
+    transportModel      Newtonian;
+    nu                  1e-06;
+    rho                 1;
+    Tsolidus            1;
+    Tliquidus           10;
+    LatentHeat          1;
+    beta                0;
+    poly_kappa          (1.0 0 0 0 0 0 0 0);
+    poly_cp             (1.0 0 0 0 0 0 0 0);
+}
+
+sigma                   0;
+Marangoni_Constant      0;
+p0                      0;
+Tvap                    1e10;
+Mm                      5.58e-2;
+LatentHeatVap           1;
+emS                     0;
+emL                     0;
+TRef                    TRef [0 0 0 1 0 0 0]   300;

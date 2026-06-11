@@ -1,0 +1,88 @@
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      blockMeshDict;
+}
+
+scale 1.0;
+
+vertices
+(
+    (0 0 0)
+    (1.0 0 0)
+    (1.0 1.0 0)
+    (0 1.0 0)
+    (0 0 0.04)
+    (1.0 0 0.04)
+    (1.0 1.0 0.04)
+    (0 1.0 0.04)
+);
+
+blocks
+(
+    hex (0 1 2 3 4 5 6 7) (100 100 4) simpleGrading (1 1 1)
+);
+
+edges ();
+
+boundary
+(
+    periodic_z_back
+    {
+        type cyclic;
+        neighbourPatch periodic_z_front;
+        faces
+        (
+            (0 1 2 3)
+        );
+    }
+    periodic_z_front
+    {
+        type cyclic;
+        neighbourPatch periodic_z_back;
+        faces
+        (
+            (4 5 6 7)
+        );
+    }
+    periodic_x_left
+    {
+        type cyclic;
+        neighbourPatch periodic_x_right;
+        faces
+        (
+            (0 4 7 3)
+        );
+    }
+    periodic_x_right
+    {
+        type cyclic;
+        neighbourPatch periodic_x_left;
+        faces
+        (
+            (1 5 6 2)
+        );
+    }
+    periodic_y_bottom
+    {
+        type cyclic;
+        neighbourPatch periodic_y_top;
+        faces
+        (
+            (0 1 5 4)
+        );
+    }
+    periodic_y_top
+    {
+        type cyclic;
+        neighbourPatch periodic_y_bottom;
+        faces
+        (
+            (3 7 6 2)
+        );
+    }
+);
+
+mergePatchPairs ();
