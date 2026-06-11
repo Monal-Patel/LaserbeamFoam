@@ -1,0 +1,66 @@
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "constant";
+    object      thermophysicalProperties;
+}
+
+phases (liquid vapor solid gas);
+
+pMin            1000;
+P0              1e5;
+interface_thickness 1e-5;
+
+sigmas
+(
+    (liquid vapor)  0.0
+    (liquid solid)  0.0
+    (liquid gas)    0.0
+    (vapor solid)   0.0
+    (vapor gas)     0.0
+    (solid gas)     0.0
+);
+
+dsigmadT
+(
+    (liquid vapor)  0.0
+    (liquid solid)  0.0
+    (liquid gas)    0.0
+    (vapor solid)   0.0
+    (vapor gas)     0.0
+    (solid gas)     0.0
+);
+
+boils
+(
+    (vapor liquid) 99999.0
+    (gas solid)    99999.0
+);
+
+LatentHeatGas
+(
+    (vapor liquid) 1.0
+    (gas solid)    1.0
+);
+
+interfaceCompression
+(
+    (liquid vapor)  1.0
+    (liquid solid)  1.0
+    (liquid gas)    1.0
+    (vapor solid)   1.0
+    (vapor gas)     1.0
+    (solid gas)     1.0
+);
+
+interfaceDiffusion
+(
+    (liquid vapor)  0.0
+    (liquid solid)  0.0
+    (liquid gas)    0.0
+    (vapor solid)   0.0
+    (vapor gas)     0.0
+    (solid gas)     0.0
+);

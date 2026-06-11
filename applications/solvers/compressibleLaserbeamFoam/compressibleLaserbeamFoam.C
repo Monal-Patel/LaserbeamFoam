@@ -77,7 +77,7 @@ int main(int argc, char *argv[])
 
     #include "createFields.H"
 
-    #include "initCorrectPhi.H"
+    tmp<volScalarField> rAU;
     #include "createUfIfPresent.H"
 
 

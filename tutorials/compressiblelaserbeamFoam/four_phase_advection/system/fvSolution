@@ -1,0 +1,96 @@
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "system";
+    object      fvSolution;
+}
+
+solvers
+{
+    "alpha.*"
+    {
+        nAlphaSubCycles 1;
+        cAlpha  1;
+    }
+
+    "pcorr.*"
+    {
+        solver          PCG;
+        preconditioner
+        {
+            preconditioner  GAMG;
+            tolerance       1e-05;
+            relTol          0;
+            smoother        GaussSeidel;
+        }
+        tolerance       1e-05;
+        relTol          0;
+        maxIter         100;
+    }
+
+    ".*(rho|rhoFinal)"
+    {
+        solver          diagonal;
+    }
+
+    p_rgh
+    {
+        solver          GAMG;
+        smoother        GaussSeidel;
+        tolerance       1e-4;
+        relTol          1e-6;
+        nCellsInCoarsestLevel 10;
+        maxIter         100;
+    }
+
+    p_rghFinal
+    {
+        $p_rgh;
+        relTol          0;
+    }
+
+    "(U|T|k|B|nuTilda)"
+    {
+        solver          smoothSolver;
+        smoother        symGaussSeidel;
+        tolerance       1e-08;
+        relTol          0.1;
+        maxIter         100;
+    }
+
+    "(U|T|k|B|nuTilda)Final"
+    {
+        $U;
+        relTol          0;
+    }
+}
+
+MELTING
+{
+    minTempCorrector    1;
+    maxTempCorrector    1;
+    epsilonTolerance    1e-6;
+    epsilonRelaxation   0.9;
+    damperSwitch        false;
+}
+
+PIMPLE
+{
+    momentumPredictor   yes;
+    nOuterCorrectors    1;
+    nCorrectors         1;
+    nNonOrthogonalCorrectors 0;
+    pRefCell            0;
+    pRefValue           0;
+    correctPhi          no;
+}
+
+relaxationFactors
+{
+    equations
+    {
+        ".*"    1;
+    }
+}
